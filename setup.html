@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <title>Setup Initial Data | E-Cafe POS</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body style="padding: 50px;">
+    <div class="glass-container" style="max-width: 600px;">
+        <h2>Inisialisasi Database E-Cafe</h2>
+        <p>Halaman ini akan membuat data awal (Produk & Akun Admin) di Firestore Anda.</p>
+        <hr style="margin: 20px 0; border: 0; border-top: 1px solid var(--border-color);">
+        
+        <div class="input-group">
+            <label>Email Admin Baru</label>
+            <input type="email" id="admin-email" placeholder="admin@ecafe.com">
+        </div>
+        <div class="input-group">
+            <label>Kata Sandi Admin Baru</label>
+            <input type="password" id="admin-password" placeholder="min. 6 karakter">
+        </div>
+        <div class="input-group">
+            <label>Nama Admin</label>
+            <input type="text" id="admin-name" placeholder="Super Admin">
+        </div>
+        
+        <button id="btn-seed" class="btn-primary">Buat Akun & Data Awal</button>
+        <button onclick="window.updateExistingImages()" class="btn-outline" style="margin-top:10px; border: 1px solid var(--primary-color); padding: 10px; width: 100%; border-radius: 10px; background: transparent; color: white; cursor: pointer;">Sinkronkan Gambar Menu</button>
+        <p id="status-msg" style="margin-top: 20px;"></p>
+        <p style="margin-top: 10px; color: var(--text-secondary); font-size: 0.8rem;">
+            *Pastikan Anda sudah mengatur <strong>Firebase Config</strong> di <code>js/firebase-config.js</code>.
+        </p>
+    </div>
+
+    <script type="module">
+        import { createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-auth.js";
+        import { doc, setDoc, collection, addDoc } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js";
+        import { auth, db } from "./js/firebase-config.js";
+
+        const btn = document.getElementById("btn-seed");
+        const status = document.getElementById("status-msg");
+
+        btn.onclick = async () => {
+            const email = document.getElementById("admin-email").value;
+            const password = document.getElementById("admin-password").value;
+            const name = document.getElementById("admin-name").value;
+
+            if (!email || !password || !name) return alert("Isi semua field!");
+
+            btn.disabled = true;
+            status.textContent = "Sedang memproses...";
+
+            try {
+                // 1. Create Admin User
+                const userCred = await createUserWithEmailAndPassword(auth, email, password);
+                const user = userCred.user;
+
+                await setDoc(doc(db, "users", user.uid), {
+                    uid: user.uid,
+                    displayName: name,
+                    email: email,
+                    role: "admin",
+                    createdAt: new Date()
+                });
+
+                // 2. Add Sample Categories & Products with new Images
+                const sampleProducts = [
+                    { name: "Espresso", price: 20000, category: "kopi", active: true, imageUrl: "img/espresso.png" },
+                    { name: "Cafe Latte", price: 28000, category: "kopi", active: true, imageUrl: "img/latte.png" },
+                    { name: "Green Tea Latte", price: 25000, category: "teh", active: true, imageUrl: "img/matcha.png" },
+                    { name: "Croissant Ham & Cheese", price: 35000, category: "makanan", active: true, imageUrl: "img/croissant.png" },
+                    { name: "Brownies Almond", price: 18000, category: "makanan", active: true, imageUrl: "https://placehold.co/400x400/271206/ffffff?text=Brownies" }
+                ];
+
+                for (const p of sampleProducts) {
+                    await addDoc(collection(db, "products"), p);
+                }
+
+                status.innerHTML = "<span style='color: var(--success)'>Berhasil! Data telah dibuat. <br> <a href='index.html' style='color: white;'>Ke Halaman Utama</a></span>";
+            } catch (err) {
+                console.error(err);
+                status.innerHTML = "<span style='color: var(--danger)'>Error: " + err.message + "</span>";
+                btn.disabled = false;
+            }
+        };
+
+        // Add a hidden button for updating existing ones if the user needs it
+        window.updateExistingImages = async () => {
+            alert('Fitur update sedang berjalan di konsol latar belakang (cek Console)');
+            const q = query(collection(db, "products"));
+            const snaps = await getDocs(q);
+            snaps.forEach(async (d) => {
+                const name = d.data().name.toLowerCase();
+                let url = "https://placehold.co/400x400/1e293b/ffffff?text=Cafe";
+                if(name.includes('espresso')) url = "img/espresso.png";
+                if(name.includes('latte')) url = "img/latte.png";
+                if(name.includes('green tea')) url = "img/matcha.png";
+                if(name.includes('croissant')) url = "img/croissant.png";
+                
+                await setDoc(doc(db, "products", d.id), { imageUrl: url }, { merge: true });
+                console.log('Updated:', name);
+            });
+        };
+    </script>
+</body>
+</html>
